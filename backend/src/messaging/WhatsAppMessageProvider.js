@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { MessageProvider } from './MessageProvider.js';
 import { env } from '../config/env.js';
 
@@ -25,6 +26,20 @@ export class WhatsAppMessageProvider extends MessageProvider {
     this.accessToken = env.whatsappAccessToken;
     this.phoneNumberId = env.whatsappPhoneNumberId;
     this.verifyToken = env.whatsappVerifyToken;
+    this.appSecret = env.whatsappAppSecret;
+  }
+
+  verifyWebhookSignature(rawBody, signature) {
+    if (!this.appSecret || !Buffer.isBuffer(rawBody) || typeof signature !== 'string') {
+      return false;
+    }
+
+    const match = /^sha256=([a-f0-9]{64})$/i.exec(signature);
+    if (!match) return false;
+
+    const expected = createHmac('sha256', this.appSecret).update(rawBody).digest();
+    const received = Buffer.from(match[1], 'hex');
+    return received.length === expected.length && timingSafeEqual(received, expected);
   }
 
   async sendMessage({ externalThreadId, text }) {
@@ -100,6 +115,10 @@ export class WhatsAppMessageProvider extends MessageProvider {
     }
 
     // POST: inbound message delivery
+    if (!this.verifyWebhookSignature(req.rawBody, req.get('x-hub-signature-256'))) {
+      return res.status(401).send('Invalid webhook signature.');
+    }
+
     const inbound = this.receiveMessage(req.body, businessId);
     if (inbound.length && onInboundMessages) {
       await onInboundMessages(inbound);

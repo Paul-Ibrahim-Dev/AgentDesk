@@ -150,13 +150,21 @@ The demo ("Elite Cuts Minna") is what powers the public `/demo` page.
 
 ### 4.5 Deployment
 
-- **Frontend:** any static host that supports a Vite SPA — Vercel is the obvious choice.
-  Set the same `VITE_*` env vars there, pointing `VITE_API_BASE_URL` at your deployed
-  backend.
-- **Backend:** Render, Railway, Fly.io, or similar — set the `.env` variables listed in
-  `backend/.env.example` as environment variables in that platform's dashboard. Never
-  commit real keys.
-
+- **Backend (Render):** the repo-root render.yaml defines the agentdesk-backend
+  web service. In Render, create a Blueprint from this repository and keep the
+  repository root as the Blueprint path. Render builds from backend/ with npm ci,
+  starts with npm start, and checks /health. Supply SUPABASE_URL,
+  SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, and ANTHROPIC_API_KEY when
+  prompted. Set CORS_ORIGIN to the deployed frontend origin (for example,
+  https://your-app.vercel.app). Keep every secret in Render's environment settings;
+  never commit real keys.
+- **Frontend:** deploy frontend/ as a Vite SPA on Vercel. Set the browser-safe
+  VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, and set VITE_API_BASE_URL to
+  the Render service URL.
+- **Railway or another host:** configure the runtime to use backend/ as the service
+  root, npm ci as the build command, and npm start as the start command. Set the
+  backend variables listed in backend/.env.example in the host's environment
+  settings. Never commit real keys.
 ---
 
 ## 5. WhatsApp integration status

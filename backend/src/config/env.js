@@ -34,6 +34,7 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN || '*',
 
   whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
+  whatsappAppSecret: process.env.WHATSAPP_APP_SECRET,
   whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN,
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
 

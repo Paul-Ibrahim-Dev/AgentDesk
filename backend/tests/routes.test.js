@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { createHmac } from 'node:crypto';
 import request from 'supertest';
 import { createFakeSupabase } from './fakeSupabase.js';
 
@@ -51,7 +52,17 @@ jest.unstable_mockModule('@anthropic-ai/sdk', () => ({
 }));
 
 const { createApp } = await import('../src/index.js');
+const { getMessageProvider } = await import('../src/messaging/index.js');
 const app = createApp();
+const whatsappProvider = getMessageProvider('whatsapp');
+const WHATSAPP_TEST_SECRET = 'test-meta-app-secret';
+whatsappProvider.appSecret = WHATSAPP_TEST_SECRET;
+
+function signWebhookPayload(payload) {
+  return 'sha256=' + createHmac('sha256', WHATSAPP_TEST_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+}
 
 function seedFresh() {
   fakeDb.__tables.businesses = [];
@@ -267,5 +278,38 @@ describe('booking status validation', () => {
       .send({ status: 'confirmed' });
     expect(res.status).toBe(200);
     expect(res.body.booking.status).toBe('confirmed');
+  });
+});
+
+describe('WhatsApp webhook signature validation', () => {
+  const payload = { object: 'whatsapp_business_account', entry: [] };
+
+  test('accepts a request with a valid signature over the raw JSON body', async () => {
+    const res = await request(app)
+      .post('/api/webhooks/whatsapp/biz-test')
+      .set('X-Hub-Signature-256', signWebhookPayload(payload))
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ received: true });
+  });
+
+  test('rejects a request with no signature', async () => {
+    const res = await request(app).post('/api/webhooks/whatsapp/biz-test').send(payload);
+    expect(res.status).toBe(401);
+  });
+
+  test('rejects a tampered payload and an invalid signature', async () => {
+    const res = await request(app)
+      .post('/api/webhooks/whatsapp/biz-test')
+      .set('X-Hub-Signature-256', signWebhookPayload(payload))
+      .send({ ...payload, entry: [{ changes: [] }] });
+    expect(res.status).toBe(401);
+
+    const malformed = await request(app)
+      .post('/api/webhooks/whatsapp/biz-test')
+      .set('X-Hub-Signature-256', 'sha256=not-a-valid-digest')
+      .send(payload);
+    expect(malformed.status).toBe(401);
   });
 });
