@@ -12,6 +12,8 @@ import Contact from './pages/Contact';
 import Demo from './pages/Demo';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 import Overview from './pages/dashboard/Overview';
 import BusinessProfile from './pages/dashboard/BusinessProfile';
@@ -46,6 +48,8 @@ function App() {
         <Route path="/demo" element={<Demo />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Route>
 
       <Route element={<ProtectedRoute />}>
