@@ -14,7 +14,7 @@ export default function Navbar() {
   const { user } = useAuth();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-700 bg-ink-900/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur-md">
       <nav className="container-page flex items-center justify-between h-16">
         <Link to="/" className="flex items-center gap-2">
           <Logo />
@@ -27,7 +27,7 @@ export default function Navbar() {
               to={l.to}
               className={({ isActive }) =>
                 `text-sm font-medium transition-colors ${
-                  isActive ? 'text-signal-400' : 'text-paper/70 hover:text-paper'
+                  isActive ? 'text-brand-600' : 'text-ink-700 hover:text-brand-600'
                 }`
               }
             >
