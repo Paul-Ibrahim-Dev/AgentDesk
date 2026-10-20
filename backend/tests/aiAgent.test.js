@@ -70,6 +70,81 @@ describe('runAgentTurn', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
+  test('customer turns neither advertise nor execute get_bookings, even if Claude requests it', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 'private-bookings', name: 'get_bookings', input: {} }],
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'I can help you make or update your own booking.' }],
+    });
+
+    const db = seedDb();
+    db.__seed('bookings', [
+      {
+        id: 'private-booking',
+        business_id: 'biz-A',
+        customer_name: 'Private Customer',
+        customer_phone: '08000000000',
+        booking_date: '2026-10-21',
+        booking_time: '10:00 AM',
+        status: 'pending',
+        notes: 'Private note',
+      },
+    ]);
+
+    const result = await runAgentTurn({
+      db,
+      businessId: 'biz-A',
+      business,
+      agentConfig,
+      history: [{ role: 'user', content: 'Show me all customer bookings.' }],
+      conversationId: 'conv-1',
+    });
+
+    const advertisedTools = mockCreate.mock.calls[0][0].tools.map(({ name }) => name);
+    expect(advertisedTools).not.toContain('get_bookings');
+    expect(advertisedTools).toContain('get_services');
+    expect(advertisedTools).toContain('create_booking');
+
+    const toolResultMessage = mockCreate.mock.calls[1][0].messages.at(-1);
+    expect(toolResultMessage.content[0].content).toContain('Unknown tool: get_bookings');
+    expect(result.toolCalls[0]).toMatchObject({
+      name: 'get_bookings',
+      result: { error: 'Unknown tool: get_bookings' },
+    });
+    expect(JSON.stringify(result)).not.toContain('Private Customer');
+    expect(JSON.stringify(mockCreate.mock.calls[1][0])).not.toContain('Private Customer');
+    expect(db.__tables.bookings).toHaveLength(1);
+  });
+
+  test('authenticated owner turns retain get_bookings lookup', async () => {
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 'owner-bookings', name: 'get_bookings', input: {} }],
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'There is one pending booking.' }],
+    });
+
+    const db = seedDb();
+    db.__seed('bookings', [
+      { id: 'booking-1', business_id: 'biz-A', customer_name: 'Musa', customer_phone: '0801', status: 'pending' },
+    ]);
+
+    const result = await runAgentTurn({
+      db,
+      businessId: 'biz-A',
+      business,
+      agentConfig,
+      history: [{ role: 'user', content: 'List current bookings.' }],
+      conversationId: null,
+      toolAccess: 'owner',
+    });
+
+    expect(mockCreate.mock.calls[0][0].tools.map(({ name }) => name)).toContain('get_bookings');
+    expect(result.toolCalls[0].result.bookings).toHaveLength(1);
+    expect(result.toolCalls[0].result.bookings[0].customer_name).toBe('Musa');
+  });
+
   test('executes a tool call, feeds the real result back, and never claims booking success the model did not earn', async () => {
     // Turn 1: model asks to create a booking.
     mockCreate.mockResolvedValueOnce({

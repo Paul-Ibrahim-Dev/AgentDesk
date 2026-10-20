@@ -25,6 +25,7 @@ const USERS = {
   'token-owner-a': { id: 'user-A', email: 'ownera@example.ng' },
   'token-owner-b': { id: 'user-B', email: 'ownerb@example.ng' },
 };
+const mockCreate = jest.fn();
 
 jest.unstable_mockModule('../src/lib/supabaseClient.js', () => ({
   supabaseAdmin: {
@@ -46,7 +47,7 @@ jest.unstable_mockModule('../src/lib/supabaseClient.js', () => ({
 jest.unstable_mockModule('@anthropic-ai/sdk', () => ({
   default: class Anthropic {
     constructor() {
-      this.messages = { create: jest.fn() };
+      this.messages = { create: mockCreate };
     }
   },
 }));
@@ -78,6 +79,7 @@ function seedFresh() {
 
 beforeEach(() => {
   seedFresh();
+  mockCreate.mockReset();
 });
 
 describe('auth enforcement', () => {
@@ -175,6 +177,44 @@ describe('multi-tenant isolation', () => {
       .get(`/api/businesses/${business.id}/bookings`)
       .set('Authorization', 'Bearer token-owner-b');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('agent-config preview tool access', () => {
+  test('only a business member can use the owner booking lookup tools', async () => {
+    fakeDb.__seed('businesses', [{ id: 'biz-A', name: 'Elite Cuts Minna' }]);
+    fakeDb.__seed('business_members', [
+      { id: 'member-A', business_id: 'biz-A', user_id: 'user-A', role: 'owner' },
+    ]);
+    fakeDb.__seed('agent_configs', [
+      { id: 'cfg-A', business_id: 'biz-A', agent_name: 'Assistant', tone: 'friendly', is_published: false },
+    ]);
+    fakeDb.__seed('bookings', [
+      { id: 'booking-A', business_id: 'biz-A', customer_name: 'Musa', customer_phone: '0801', status: 'pending' },
+    ]);
+
+    const denied = await request(app)
+      .post('/api/businesses/biz-A/agent-config/preview')
+      .set('Authorization', 'Bearer token-owner-b')
+      .send({ message: 'List bookings.' });
+    expect(denied.status).toBe(403);
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'tool_use', id: 'owner-bookings', name: 'get_bookings', input: {} }],
+    });
+    mockCreate.mockResolvedValueOnce({
+      content: [{ type: 'text', text: 'There is one pending booking.' }],
+    });
+
+    const allowed = await request(app)
+      .post('/api/businesses/biz-A/agent-config/preview')
+      .set('Authorization', 'Bearer token-owner-a')
+      .send({ message: 'List bookings.' });
+
+    expect(allowed.status).toBe(200);
+    expect(mockCreate.mock.calls[0][0].tools.map(({ name }) => name)).toContain('get_bookings');
+    expect(allowed.body.toolCalls[0].result.bookings[0].customer_name).toBe('Musa');
   });
 });
 

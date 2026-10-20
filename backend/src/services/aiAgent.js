@@ -1,6 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
-import { buildToolHandlers, TOOL_DEFINITIONS } from './tools.js';
+import {
+  buildCustomerToolHandlers,
+  buildToolHandlers,
+  CUSTOMER_TOOL_DEFINITIONS,
+  TOOL_DEFINITIONS,
+} from './tools.js';
 
 let _anthropic = null;
 function getClient() {
@@ -65,9 +70,21 @@ ${agentConfig?.instructions ? `\nAdditional instructions from the business owner
  * @param {Array<{role: 'user'|'assistant', content: string}>} params.history
  * @param {string} params.conversationId - passed through to tools (e.g. request_human_help)
  */
-export async function runAgentTurn({ db, businessId, business, agentConfig, history, conversationId }) {
+export async function runAgentTurn({
+  db,
+  businessId,
+  business,
+  agentConfig,
+  history,
+  conversationId,
+  toolAccess = 'customer',
+}) {
   const client = getClient();
-  const handlers = buildToolHandlers(db, businessId);
+  const isOwner = toolAccess === 'owner';
+  const handlers = isOwner
+    ? buildToolHandlers(db, businessId)
+    : buildCustomerToolHandlers(db, businessId);
+  const toolDefinitions = isOwner ? TOOL_DEFINITIONS : CUSTOMER_TOOL_DEFINITIONS;
   const systemPrompt = buildSystemPrompt({ business, agentConfig });
 
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
@@ -82,7 +99,7 @@ export async function runAgentTurn({ db, businessId, business, agentConfig, hist
       model: env.anthropicModel,
       max_tokens: 1024,
       system: systemPrompt,
-      tools: TOOL_DEFINITIONS,
+      tools: toolDefinitions,
       messages,
     });
 

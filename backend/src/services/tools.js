@@ -270,3 +270,16 @@ export const TOOL_DEFINITIONS = [
     },
   },
 ];
+
+// Public customer conversations must never receive booking lookup. Keep the
+// full set for authenticated owner workflows and explicitly narrow both the
+// advertised tools and executable handlers for customer-facing turns.
+export const CUSTOMER_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter(
+  ({ name }) => name !== 'get_bookings'
+);
+
+export function buildCustomerToolHandlers(db, businessId) {
+  return Object.fromEntries(
+    Object.entries(buildToolHandlers(db, businessId)).filter(([name]) => name !== 'get_bookings')
+  );
+}

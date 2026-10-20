@@ -67,6 +67,7 @@ router.post('/preview', async (req, res, next) => {
       agentConfig,
       history: [...history, { role: 'user', content: message }],
       conversationId: null, // preview never escalates a real conversation
+      toolAccess: 'owner', // this route is protected by auth and business membership
     });
 
     res.json(result);
